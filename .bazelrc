@@ -1,0 +1,107 @@
+try-import %workspace%/.bazelrc.local
+try-import %workspace%/.bazelrc.windows.local
+
+# Enable bzlmod but without lockfile for a moment.
+# Lockfile is a problem to check in at the moment
+# because of constant Git conflicts and platform-specific
+# pieces.
+# https://github.com/bazelbuild/bazel/issues/20369
+# https://github.com/bazelbuild/bazel/issues/21491
+
+common --enable_bzlmod --lockfile_mode=off
+
+# Ensure Windows support is accurate.
+
+startup --windows_enable_symlinks
+build --enable_runfiles
+
+build --flag_alias=pin_browsers=//common:pin_browsers
+build --flag_alias=headless=//common:headless
+
+# Set the default java toolchain
+
+build --java_language_version=17
+build --java_runtime_version=remotejdk_17
+build --tool_java_language_version=17
+build --tool_java_runtime_version=remotejdk_17
+
+# We target java 11 by default
+
+build --javacopt="--release 11"
+
+# Require java dependencies to be used and first-order
+
+build --experimental_strict_java_deps=strict
+build --explicit_java_test_deps
+
+# Allow spaces in runfile paths
+build --nobuild_runfile_links
+
+# More JS magic
+build --experimental_allow_unresolved_symlinks
+
+# Required for faster TS builds
+build --@aspect_rules_ts//ts:skipLibCheck=always
+fetch --@aspect_rules_ts//ts:skipLibCheck=always
+query --@aspect_rules_ts//ts:skipLibCheck=always
+
+build --@aspect_rules_ts//ts:default_to_tsc_transpiler
+fetch --@aspect_rules_ts//ts:default_to_tsc_transpiler
+query --@aspect_rules_ts//ts:default_to_tsc_transpiler
+
+# Ensure builds are unpolluted by the user env
+
+build --incompatible_strict_action_env
+
+# For build stamping
+
+build --enable_platform_specific_config
+build:linux --workspace_status_command=scripts/build-info.sh
+build:macos --workspace_status_command=scripts/build-info.sh
+build:windows --workspace_status_command="powershell.exe scripts/build-info.ps1"
+
+# Make sure we get something helpful when tests fail
+
+build --verbose_failures
+build --test_output=errors
+
+# pass environment variables to the test environment
+
+test --test_env=CI
+test --test_env=DASHBOARD_URL
+test --test_env=DISPLAY
+test --test_env=FIREFOX_NIGHTLY_BINARY
+test --test_env=GITHUB_ACTIONS
+test --test_env=MOZ_HEADLESS
+test --test_env=SELENIUM_BROWSER
+test --test_env=TRAVIS
+test --test_env=PYTHON_VERSION
+test --test_env=SE_AVOID_STATS=true
+
+# Remove once rules_ruby support proper $LOAD_PATH expansion.
+
+test --test_env=RUBYOPT="-Irb/lib -w"
+
+# Speed up JRuby startup.
+# https://github.com/jruby/jruby/wiki/Improving-startup-time
+
+build --action_env=JRUBY_OPTS="--dev"
+test --test_env=JRUBY_OPTS="--dev"
+
+# Expose necessary variables for Selenium-Manager.
+
+test:windows --test_env=LOCALAPPDATA
+test:windows --test_env=PROGRAMFILES="C:\\Program Files"
+test:windows --test_env=PROGRAMFILES(X86)="C:\\Program Files (x86)"
+
+test --test_timeout=1800
+
+test:node_debug --test_output=streamed --test_strategy=exclusive --test_timeout=9999 --nocache_test_results
+test:ruby_debug --test_output=streamed --test_env=RUBY_DEBUG_FORK_MODE=parent --run_under="@bundle//bin:rdbg --nonstop --open --command"
+
+build:release --config=remote
+build:release --stamp
+build:release --remote_download_outputs=toplevel
+
+# RBE
+import %workspace%/.bazelrc.remote
